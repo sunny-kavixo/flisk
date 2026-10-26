@@ -13,12 +13,16 @@ pytestmark = [pytest.mark.fast, pytest.mark.generator]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_DIR = REPO_ROOT / "runtime" / "engine" / "topologies" / "platform" / "docker" / "compose"
+NETWORKING_DIR = REPO_ROOT / "runtime" / "engine" / "topologies" / "platform" / "docker" / "networking"
 RESULT_MARKER = "Error in fail: RESULT"
 
 
 def _run_starlark(tmp_path: Path, body: str) -> dict:
     tiltfile = tmp_path / "Tiltfile"
-    tiltfile.write_text(body.replace("@COMPOSE", str(COMPOSE_DIR)) + "\nfail('RESULT' + encode_json(r))\n")
+    tiltfile.write_text(
+        body.replace("@COMPOSE", str(COMPOSE_DIR)).replace("@NETWORKING", str(NETWORKING_DIR))
+        + "\nfail('RESULT' + encode_json(r))\n"
+    )
     proc = subprocess.run(
         ["tilt", "alpha", "tiltfile-result", "-f", str(tiltfile)],
         capture_output=True,
@@ -69,6 +73,73 @@ def test_project_router_uses_cli_api_path():
     ).read_text()
     assert "def cli_api_path(" in source
     assert "flisk up" in source
+
+
+@pytest.mark.skipif(shutil.which("tilt") is None, reason="tilt CLI not installed")
+def test_build_entrypoints_http_only(tmp_path):
+    """build_entrypoints with HTTP only produces 'web' entrypoint and excludes HTTPS."""
+    r = _run_starlark(
+        tmp_path,
+        """
+load('@NETWORKING/traefik_helpers.star', 'build_entrypoints')
+r = {'entrypoints': build_entrypoints(True, False)}
+""",
+    )
+    entrypoints = r["entrypoints"]
+    assert entrypoints == "web"
+    entrypoints_list = entrypoints.split(",")
+    assert "web" in entrypoints_list
+    assert "websecure" not in entrypoints_list
+
+
+@pytest.mark.skipif(shutil.which("tilt") is None, reason="tilt CLI not installed")
+def test_build_entrypoints_http_and_https(tmp_path):
+    """build_entrypoints with HTTP and HTTPS enabled produces both 'web' and 'websecure'."""
+    r = _run_starlark(
+        tmp_path,
+        """
+load('@NETWORKING/traefik_helpers.star', 'build_entrypoints')
+r = {'entrypoints': build_entrypoints(True, True)}
+""",
+    )
+    entrypoints = r["entrypoints"]
+    assert entrypoints == "web,websecure"
+    entrypoints_list = entrypoints.split(",")
+    assert "web" in entrypoints_list
+    assert "websecure" in entrypoints_list
+    assert entrypoints_list == ["web", "websecure"]
+
+
+@pytest.mark.skipif(shutil.which("tilt") is None, reason="tilt CLI not installed")
+def test_build_entrypoints_edge_cases_and_constants(tmp_path):
+    """build_entrypoints handles https-only, neither enabled fallback, and matches constants."""
+    r = _run_starlark(
+        tmp_path,
+        """
+load('@NETWORKING/traefik_helpers.star', 'build_entrypoints')
+load('@NETWORKING/traefik_constants.star', 'TRAEFIK_WEB_ENTRYPOINT', 'TRAEFIK_WEBSECURE_ENTRYPOINT', 'TRAEFIK_BACKEND_ENABLE_HTTP', 'TRAEFIK_BACKEND_ENABLE_HTTPS', 'TRAEFIK_FRONTEND_ENABLE_HTTP', 'TRAEFIK_FRONTEND_ENABLE_HTTPS')
+r = {
+    'https_only': build_entrypoints(False, True),
+    'neither': build_entrypoints(False, False),
+    'backend_defaults': build_entrypoints(TRAEFIK_BACKEND_ENABLE_HTTP, TRAEFIK_BACKEND_ENABLE_HTTPS),
+    'frontend_defaults': build_entrypoints(TRAEFIK_FRONTEND_ENABLE_HTTP, TRAEFIK_FRONTEND_ENABLE_HTTPS),
+    'web_constant': TRAEFIK_WEB_ENTRYPOINT,
+    'websecure_constant': TRAEFIK_WEBSECURE_ENTRYPOINT,
+}
+""",
+    )
+    assert r["https_only"] == "websecure"
+    assert "websecure" in r["https_only"].split(",")
+    assert "web" not in r["https_only"].split(",")
+
+    # When both HTTP and HTTPS are disabled, fallback guarantees at least the default web entrypoint
+    assert r["neither"] == "web"
+    assert r["web_constant"] == "web"
+    assert r["websecure_constant"] == "websecure"
+
+    # Backend default in Traefik constants is HTTP only; frontend default is HTTP and HTTPS
+    assert r["backend_defaults"] == "web"
+    assert r["frontend_defaults"] == "web,websecure"
 
 
 def test_tiltfile_keeps_traefik_in_focus_mode():
