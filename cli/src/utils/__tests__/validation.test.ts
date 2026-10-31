@@ -164,6 +164,10 @@ describe("isValidPort", () => {
     ["non-numeric string", "abc"],
     ["negative string", "-1"],
     ["decimal string", "80.5"],
+    ["null", null as unknown as number],
+    ["undefined", undefined as unknown as number],
+    ["boolean", true as unknown as number],
+    ["object", {} as unknown as number],
   ])("should reject %s: %j", (_label, port) => {
     expect(isValidPort(port)).toBe(false);
   });

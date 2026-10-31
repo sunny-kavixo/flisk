@@ -51,10 +51,7 @@ export function isValidPort(port) {
     if (typeof port === "number") {
         return Number.isInteger(port) && port >= 1 && port <= 65535;
     }
-    if (typeof port === "string") {
-        return /^[1-9]\d{0,4}$/.test(port) && Number(port) <= 65535;
-    }
-    return false;
+    return typeof port === "string" && /^[1-9]\d{0,4}$/.test(port) && Number(port) <= 65535;
 }
 /**
  * Check a filesystem path segment for characters that are unsafe to use in a
