@@ -139,7 +139,7 @@ export async function checkDockerBuildCache(
       didPass: false,
       isWarning: true,
       message: `${info.size} across ${info.entries} ${entryLabel}: Docker build cache exceeds ${DOCKER_BUILD_CACHE_WARN_GIB} GB threshold. Cache is shared across all projects on this machine`,
-      fix: "Prune old build cache: flisk down --prune-cache (or docker builder prune --filter until=24h). Note: this affects other projects on this machine.",
+      fix: "Prune old build cache: flisk down --prune-cache; or docker builder prune --filter until=24h. Note: this affects other projects on this machine.",
       buildCache,
     };
   }

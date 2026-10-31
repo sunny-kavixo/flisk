@@ -171,7 +171,7 @@ Podman: doctor prints `Podman is running` when it is the runtime it finds, and `
 
 ```text
 ⚠ 11.82GB across 780 entries: Docker build cache exceeds 10 GB threshold. Cache is shared across all projects on this machine
-ℹ Fix: Prune old build cache: flisk down --prune-cache (or docker builder prune --filter until=24h). Note: this affects other projects on this machine.
+ℹ Fix: Prune old build cache: flisk down --prune-cache; or docker builder prune --filter until=24h. Note: this affects other projects on this machine.
 ```
 
 - **Cause:** Starting stacks builds golden base image layers and mounts package caches (`RUN --mount=type=cache,target=/cache/bun`) so builds take seconds instead of minutes. Over time, Docker build cache grows by several gigabytes. Because Docker build cache is daemon-global, it is shared across all projects on the machine.
